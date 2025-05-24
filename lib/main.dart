@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       routes: {
         "/": (context) => LoginPage(),
-        "/bot": (context) => Chatbot(),
+        "/bot": (context) => ChabotPage(),
       },
       theme: ThemeData(
         primaryColor: Colors.teal,

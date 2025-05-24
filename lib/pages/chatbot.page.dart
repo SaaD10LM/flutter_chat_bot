@@ -1,73 +1,72 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:ffi';
 
-class Chatbot extends StatefulWidget {
-  const Chatbot({super.key});
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+class ChabotPage extends StatefulWidget {
+  ChabotPage({super.key});
 
   @override
-  State<Chatbot> createState() => _ChatbotState();
+  State<ChabotPage> createState() => _ChabotPageState();
 }
 
-class _ChatbotState extends State<Chatbot> {
-  var messages = [
-    {"type": "user", "content": "Bonjour"},
-    {"type": "assistant", "content": "Que puis-je faire pour vous"},
+class _ChabotPageState extends State<ChabotPage> {
+  var messages =[
+
   ];
 
   TextEditingController userController = TextEditingController();
+  ScrollController scrollController = ScrollController();
 
   @override
   Widget build(BuildContext context) {
+    print("Build .......");
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          "Chat Bot",
-          style: TextStyle(color: Theme.of(context).indicatorColor),
+        title: Text("DWM Chatbot",
+            style: TextStyle(color: Theme.of(context).indicatorColor)
         ),
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.pushNamed(context, "/");
-            },
-            icon: Icon(
-              Icons.logout,
-              color: Theme.of(context).indicatorColor,
-            ),
-          )
+          IconButton(onPressed: (){
+            Navigator.of(context).pop();
+            Navigator.pushNamed(context, "/");
+          }, icon: Icon(Icons.logout,
+            color: Theme.of(context).indicatorColor ,))
         ],
       ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
+              controller: scrollController,
               itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final isUser = messages[index]['type'] == 'user';
+              itemBuilder: (context, index){
                 return Column(
                   children: [
                     Row(
-                      mainAxisAlignment:
-                      isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
                       children: [
-                        Card(
-                          color: isUser
-                              ? Color.fromARGB(255, 200, 255, 200)
-                              : Color.fromARGB(255, 240, 240, 240),
-                          shape: RoundedRectangleBorder(
-                            side: BorderSide(
-                              color: Theme.of(context).primaryColor,
+                        messages[index]['role']=='user'
+                            ? SizedBox(width: 80,)
+                            : SizedBox(width: 0,),
+                        Expanded(
+                          child: Card.outlined(
+                            margin: EdgeInsets.all(6),
+                            color: messages[index]['role']=='user'
+                                ?Color.fromARGB(30, 0, 255, 0)
+                                : Colors.white
+                            ,
+                            child: ListTile(
+                              title: Text("${messages[index]['content']}"),
                             ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          child: Padding(
-                            padding: const EdgeInsets.all(10.0),
-                            child: Text(messages[index]['content'] ?? ''),
                           ),
                         ),
+                        messages[index]['role']=='assistant'
+                            ? SizedBox(width: 80,)
+                            : SizedBox(width: 0,),
                       ],
                     ),
+                    Divider()
                   ],
                 );
               },
@@ -81,33 +80,67 @@ class _ChatbotState extends State<Chatbot> {
                   child: TextFormField(
                     controller: userController,
                     decoration: InputDecoration(
-                      hintText: "Type your message...",
-                      suffixIcon: Icon(Icons.person),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
+                        hintText: "Your username",
+                        //icon: Icon(Icons.lock),
+                        //prefixIcon: Icon(Icons.lock),
+                        suffixIcon: Icon(Icons.person),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(
+                                width: 1,
+                                color: Theme.of(context).primaryColor
+                            )
+                        )
                     ),
                   ),
                 ),
-                IconButton(
-                  onPressed: () {
-                    String question = userController.text.trim();
-                    if (question.isNotEmpty) {
-                      String response = "Response to: $question";
-                      setState(() {
-                        messages.add({"type": "user", "content": question});
-                        messages.add({"type": "assistant", "content": response});
-                        userController.clear();
-                      });
-                    }
-                  },
-                  icon: Icon(Icons.send),
+                IconButton(onPressed: (){
+                  String question = userController.text;
+                  //Uri  uri= Uri.https("api.openai.com","/v1/chat/completions");
+                  //Uri uri=Uri.parse("https://api.openai.com//v1/chat/completions");
+                  Uri uri=Uri.parse("http://172.20.10.2:11434/v1/chat/completions");
+
+                  var headers = {
+                    "Content-Type":"application/json",
+                    //"Authorization":"Bearer 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"
+                  };
+
+
+                  setState(() {
+                    messages.add( {"role": "user", "content": question});
+                  });
+                  var body = {
+                    //"model": "gpt-4o", "messages": messages
+                    "model": "llama3.2", "messages": messages
+                  };
+                  http.post(uri,headers: headers, body: json.encode(body))
+                      .then((resp) {
+                    var aiResponse = json.decode(resp.body);
+                    String answer = aiResponse['choices'][0]['message']['content'];
+                    setState(() {
+                      //messages.add({"role":"user","content":question});
+                      messages.add({"role":"assistant","content":answer});
+                      scrollController.jumpTo(
+                          scrollController.position.maxScrollExtent + 800);
+                    });
+                    userController.text="";
+                  }).catchError((err){
+                    print("**********");
+                    print(err);
+                    print("**********");
+                  });
+
+
+
+                },
+                    icon: Icon(Icons.send)
                 )
               ],
             ),
           ),
         ],
       ),
+
     );
   }
 }
